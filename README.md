@@ -11,7 +11,7 @@ yii2-wechat
 安装
 ------------
 
-您可以使用composer来安装, 添加下列代码在您的``composer.json``文件中并执行``composer update``操作
+您可以使用composer来安装, 添加下列代码在您的``composer.json``文件中并执行``composer update``操作2
 
 ```json
 {
