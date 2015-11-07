@@ -113,6 +113,7 @@ class Platform extends Component
                     $data->authorizer_appid = $res->authorizer_appid;
                     $data->authorizer_refresh_token = $res->authorizer_refresh_token;
                     $data->authorizer_access_token = $authorizer_access_token;
+                    $data->authorizer_all = $response;
                     $this->cache->set("niancode/wechat/getAuthorizerAccessToken", $data, 7200);
                     return $show_token ? $authorizer_access_token : $res;
                 }
@@ -191,11 +192,10 @@ class Platform extends Component
      * @return void
      * @author
      **/
-    public function getVerifyTicket($text)
+    public function getVerifyTicket($text = null, $cache = true)
     {
-        $this->cache->delete("niancode/wechat/getVerifyTicket");
         $data = $this->cache->get("niancode/wechat/getVerifyTicket");
-        if ($data === false) {
+        if ($data === false || $cache === false) {
             file_put_contents('wx.log', date('Y-m-d H:i:s') . $text . "\n", FILE_APPEND);
 
             $xml_tree = new \DOMDocument();
