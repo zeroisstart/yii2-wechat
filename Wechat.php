@@ -9,6 +9,7 @@ use yii\web\HttpException;
 use yii\base\InvalidParamException;
 use yii\base\InvalidConfigException;
 use niancode\wechat\Platform\Platform;
+use niancode\wechat\Platform\PlatformAuth;
 
 class Wechat extends Component
 {
@@ -21,7 +22,7 @@ class Wechat extends Component
     public static $instance;
 
     /**
-     * undocumented function
+     * 第三方平台instance
      *
      * @return void
      * @author niancode
@@ -32,5 +33,21 @@ class Wechat extends Component
             self::$instance = new Platform($config);
         }
         return self::$instance;
+    }
+
+    /**
+     * 第三方平台代授权instance
+     *
+     * @return void
+     * @author
+     **/
+    public function getPfAuthInstance($appid, $code, $component_appid, $component_access_token, $scope = 'snsapi_userinfo')
+    {
+        $config['appid'] = $appid;
+        $config['code'] = $code;
+        $config['component_appid'] = $component_appid;
+        $config['component_access_token'] = $component_access_token;
+        $config['scope'] = $scope;
+        return new PlatformAuth($config);
     }
 }
