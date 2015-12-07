@@ -169,13 +169,14 @@ class PlatformAuth extends Component
         $data = $this->cache->get("niancode/wechat/auth/getSnsApiUserinfo/{$this->appid}");
         if ($data === false) {
             $access_token = $this->getAccessToken(false);
-            $url = self::WECHAT_BASE_URL . "sns/userinfo";
-            $post = [
+            $url = self::WECHAT_BASE_URL . "sns/userinfo?";
+            $params = [
                 'lang' => 'zh_CN',
                 'access_token' => $access_token->access_token,
                 'openid' => $access_token->openid,
             ];
-            $request = Http::get($url, $post);
+            $url .= http_build_query($params);
+            $request = Http::get($url);
             $response = $request->json();
             if(array_key_exists('openid', $response)) {
                 $res = $request->json(['object' => true]);
