@@ -1,10 +1,10 @@
 <?php
 
-namespace Thenbsp\Wechat;
+namespace niancode\wechat;
 
-use Thenbsp\Wechat\Wechat;
-use Thenbsp\Wechat\Util\Http;
-use Thenbsp\Wechat\Util\Cache;
+use niancode\wechat\Wechat;
+use niancode\wechat\Util\Http;
+use niancode\wechat\Util\Cache;
 
 class AccessToken
 {

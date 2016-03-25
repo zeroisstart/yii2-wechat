@@ -41,7 +41,7 @@ class Platform extends Component
     public function __construct($config)
     {
         $this->config = $config;
-        $this->cache = Yii::$app->cache;
+        $this->cache = Yii::$app->redisCache;
     }
 
     /**
@@ -92,34 +92,71 @@ class Platform extends Component
      * @return void
      * @author
      **/
-    public function getAuthorizerAccessToken($authcode = null, $show_token = true)
+    public function getAuthorizerAccessToken($authcode = null, $show_token = true, $authorizer = null)
     {
-        $data = $this->cache->get("niancode/wechat/getAuthorizerAccessToken");
+        $cache_key = "niancode/wechat/getAuthorizerAccessToken";
+        $data = $this->cache->get($cache_key);
         if ($data === false) {
             $accessToken = $this->getComponentAccessToken();
-            $url = self::WECHAT_BASE_URL. "cgi-bin/component/api_query_auth?component_access_token=$accessToken";
-            $post = [
-                'component_appid' => $this->config->appId,
-                'authorization_code' => $authcode,
-            ];
-            $request = Http::post($url, ['json' => $post]);
-            $response = $request->json();
-            if (array_key_exists('authorization_info', $response)) {
-                $res = $request->json(['object' => true]);
-                $res = $res->authorization_info;
-                $authorizer_access_token = $res->authorizer_access_token;
-                if ($authorizer_access_token) {
-                    $data = new \stdClass();
-                    $data->authorizer_appid = $res->authorizer_appid;
-                    $data->authorizer_refresh_token = $res->authorizer_refresh_token;
-                    $data->authorizer_access_token = $authorizer_access_token;
-                    $data->authorizer_all = $response;
-                    $this->cache->set("niancode/wechat/getAuthorizerAccessToken", $data, 7200);
-                    return $show_token ? $authorizer_access_token : $res;
+            if ($authcode) {
+                $url = self::WECHAT_BASE_URL. "cgi-bin/component/api_query_auth?component_access_token=$accessToken";
+                $post = [
+                    'component_appid' => $this->config->appId,
+                    'authorization_code' => $authcode,
+                ];
+                $request = Http::post($url, ['json' => $post]);
+                $response = $request->json();
+                if (array_key_exists('authorization_info', $response)) {
+                    $res = $request->json(['object' => true]);
+                    $res = $res->authorization_info;
+                    $authorizer_access_token = $res->authorizer_access_token;
+                    if ($authorizer_access_token) {
+                        $data = new \stdClass();
+                        $data->authorizer_appid = $res->authorizer_appid;
+                        $data->authorizer_refresh_token = $res->authorizer_refresh_token;
+                        $data->authorizer_access_token = $authorizer_access_token;
+                        $data->authorizer_all = $response;
+                        $this->cache->set($cache_key, $data, 7000);
+                        return $show_token ? $authorizer_access_token : $res;
+                    }
                 }
+            } else {
+                return $this->_getAuthorizerRefreshToken($cache_key, $authorizer, $show_token);
             }
         } else {
             return $show_token ? $data->authorizer_access_token : $data;
+        }
+    }
+
+    /**
+     * 获取刷新令牌
+     *
+     * @return void
+     * @author
+     **/
+    private function _getAuthorizerRefreshToken($cache_key, $authorizer, $show_token = true)
+    {
+        $accessToken = $this->getComponentAccessToken();
+        $url = self::WECHAT_BASE_URL. "cgi-bin/component/api_authorizer_token?component_access_token=$accessToken";
+        $post = [
+            'component_appid' => $this->config->appId,
+            'authorizer_appid' => $authorizer->authorizer_appid,
+            'authorizer_refresh_token' => $authorizer->authorizer_refresh_token,
+        ];
+        $request = Http::post($url, ['json' => $post]);
+        $response = $request->json();
+        if (array_key_exists('authorizer_access_token', $response)) {
+            $res = $request->json(['object' => true]);
+            $authorizer_access_token = $res->authorizer_access_token;
+            if ($authorizer_access_token) {
+                $data = new \stdClass();
+                $data->component_appid = $this->config->appId;
+                $data->authorizer_appid = $authorizer->authorizer_appid;
+                $data->authorizer_refresh_token = $res->authorizer_refresh_token;
+                $data->authorizer_access_token = $authorizer_access_token;
+                $this->cache->set($cache_key, $data, 7000);
+                return $show_token ? $authorizer_access_token : $data;
+            }
         }
     }
 
@@ -167,17 +204,29 @@ class Platform extends Component
             $post = [
                 'component_appid' => $this->config->appId,
                 'component_appsecret' => $this->config->appSecret,
-                'component_verify_ticket' => $this->getVerifyTicket($text),
+                'component_verify_ticket' => $this->getVerifyTicket($text, false),
             ];
+
             $request = Http::post($url, ['json' => $post]);
             $response = $request->json();
             if(array_key_exists('component_access_token', $response)) {
                 $res = $request->json(['object' => true]);
                 $access_token = $res->component_access_token;
                 if ($access_token) {
+
+                    // 写入日志
+                    try {
+                        $info['component_access_token'] = $access_token;
+                        $info['verify_ticket'] = $text;
+                        $new_text = sprintf("%s >>> %s\n", date('Y-m-d H:i:s'), var_export($info, true));
+                        file_put_contents(Yii::getAlias('@runtime/logs/platform_access_token.log'), $new_text, FILE_APPEND);
+                    } catch (ErrorException $e) {
+                        Yii::warning("Token日志写入错误");
+                    }
+
                     $data = new \stdClass();
                     $data->access_token = $access_token;
-                    $this->cache->set("niancode/wechat/getComponentAccessToken", $data, 7000);
+                    $this->cache->set("niancode/wechat/getComponentAccessToken", $data, 6000);
                     return $access_token;
                 }
             }
@@ -194,10 +243,7 @@ class Platform extends Component
      **/
     public function getVerifyTicket($text = null, $cache = true)
     {
-        $data = $this->cache->get("niancode/wechat/getVerifyTicket");
-        if ($data === false || $cache === false) {
-            file_put_contents('wx.log', date('Y-m-d H:i:s') . $text . "\n", FILE_APPEND);
-
+        if ($text) {
             $xml_tree = new \DOMDocument();
             $xml_tree->loadXML($text);
             $array_e = $xml_tree->getElementsByTagName('Encrypt');
@@ -217,11 +263,14 @@ class Platform extends Component
                 $verify_ticket = $ticket_e->item(0)->nodeValue;
                 $data = new \stdClass();
                 $data->verify_ticket = $verify_ticket;
-                $this->cache->set("niancode/wechat/getVerifyTicket", $data, 500);
+                // $this->cache->set("niancode/wechat/getVerifyTicket", $data, 500);
                 return $verify_ticket;
             }
-        } else {
-            return $data->verify_ticket;
         }
+        // $data = $this->cache->get("niancode/wechat/getVerifyTicket");
+        // if ($data === false || $cache === false) {
+        // } else {
+        //     return $data->verify_ticket;
+        // }
     }
 }

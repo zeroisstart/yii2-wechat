@@ -1,10 +1,10 @@
 <?php
 
-namespace Thenbsp\Wechat;
+namespace niancode\wechat;
 
-use Thenbsp\Wechat\Ticket;
-use Thenbsp\Wechat\AccessToken;
-use Thenbsp\Wechat\Util\Serialize;
+use niancode\wechat\Ticket;
+use niancode\wechat\Platform\PlatformAccessToken;
+use niancode\wechat\Util\Serialize;
 
 class Jssdk
 {
@@ -44,7 +44,7 @@ class Jssdk
     /**
      * 构造方法
      */
-    public function __construct(AccessToken $accessToken)
+    public function __construct($accessToken)
     {
         $this->accessToken  = $accessToken;
         $this->ticket       = new Ticket($accessToken);

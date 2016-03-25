@@ -1,9 +1,9 @@
 <?php
 
-namespace Thenbsp\Wechat;
+namespace niancode\wechat;
 
-use Thenbsp\Wechat\AccessToken;
-use Thenbsp\Wechat\Util\Http;
+use niancode\wechat\Platform\PlatformAccessToken;
+use niancode\wechat\Util\Http;
 
 class Ticket
 {
@@ -20,7 +20,7 @@ class Ticket
     /**
      * 构造方法
      */
-    public function __construct(AccessToken $accessToken)
+    public function __construct($accessToken)
     {
         $this->accessToken = $accessToken;
     }
@@ -82,7 +82,7 @@ class Ticket
     protected function _getCacheName($type)
     {
         $wechat = $this->accessToken->getWechat();
-        
+
         return $wechat['appid'].'_ticket_'.$type;
     }
 }

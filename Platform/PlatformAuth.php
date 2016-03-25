@@ -71,7 +71,7 @@ class PlatformAuth extends Component
 	 **/
 	public function __construct($data)
 	{
-        $this->cache = Yii::$app->cache;
+        $this->cache = Yii::$app->dbCache;
 		$this->appid = $data['appid'];
  		$this->code = $data['code'];
  		$this->component_appid = $data['component_appid'];
@@ -91,34 +91,38 @@ class PlatformAuth extends Component
      **/
     public function getAccessToken($show_token = true)
     {
-    	$data = $this->cache->get("niancode/wechat/auth/getAccessToken/{$this->appid}");
-    	if ($data === false) {
-    	    $url = self::WECHAT_BASE_URL . "sns/oauth2/component/access_token?";
-    	    $params = [
-    	    	'grant_type' => "authorization_code",
-	    	    'appid' => $this->appid,
-	    	    'code' => $this->code,
-    	        'component_appid' => $this->component_appid,
-    	        'component_access_token' => $this->component_access_token,
-    	    ];
-            $url .= http_build_query($params);
-    	    $request = Http::get($url);
-    	    $response = $request->json();
-    	    if(array_key_exists('access_token', $response)) {
-    	        $res = $request->json(['object' => true]);
-    	        $access_token = $res->access_token;
-    	        if ($res->access_token) {
-    	            $data = new \stdClass();
-    	            $data->access_token = $access_token;
-                    $data->refresh_token = $res->refresh_token;
-    	            $data->openid = $res->openid;
-    	            $this->cache->set("niancode/wechat/auth/getAccessToken/{$this->appid}", $data, 7000);
-    	            return $show_token ? $access_token : $data;
-    	        }
-    	    }
-    	} else {
-    	    return $show_token ? $data->access_token : $data;
-    	}
+        $url = self::WECHAT_BASE_URL . "sns/oauth2/component/access_token?";
+        $params = [
+            'grant_type' => "authorization_code",
+            'appid' => $this->appid,
+            'code' => $this->code,
+            'component_appid' => $this->component_appid,
+            'component_access_token' => $this->component_access_token,
+        ];
+        $url .= http_build_query($params);
+        $request = Http::get($url);
+        $response = $request->json();
+        Yii::error("\n====================niancode auth_token===================");
+        Yii::error($params);
+        Yii::error($response);
+        Yii::error("\n====================end niancode===================");
+        if(array_key_exists('access_token', $response)) {
+            $res = $request->json(['object' => true]);
+            $access_token = $res->access_token;
+            if ($res->access_token) {
+                $data = new \stdClass();
+                $data->access_token = $access_token;
+                $data->refresh_token = $res->refresh_token;
+                $data->openid = $res->openid;
+                // $this->cache->set("niancode/wechat/auth/getAccessToken/{$this->appid}", $data, 7000);
+                return $show_token ? $access_token : $data;
+            }
+        }
+    	// $data = $this->cache->get("niancode/wechat/auth/getAccessToken/{$this->appid}");
+    	// if ($data === false) {
+    	// } else {
+    	//     return $show_token ? $data->access_token : $data;
+    	// }
     }
 
     /**
@@ -166,9 +170,10 @@ class PlatformAuth extends Component
      **/
     public function getSnsApiUserinfo()
     {
-        $data = $this->cache->get("niancode/wechat/auth/getSnsApiUserinfo/{$this->appid}");
+        $access_token = $this->getAccessToken(false);
+        if (!$access_token) return false;
+        $data = $this->cache->get("niancode/wechat/auth/getSnsApiUserinfo/{$this->appid}/{$access_token->openid}");
         if ($data === false) {
-            $access_token = $this->getAccessToken(false);
             $url = self::WECHAT_BASE_URL . "sns/userinfo?";
             $params = [
                 'lang' => 'zh_CN',
@@ -182,6 +187,8 @@ class PlatformAuth extends Component
                 $res = $request->json(['object' => true]);
                 if ($res->openid) {
                     $data = new \stdClass();
+                    $data->access_token = $access_token->access_token;
+                    $data->refresh_token = $access_token->refresh_token;
                     $data->openid = $res->openid;
                     $data->nickname = $res->nickname;
                     $data->sex = $res->sex;
@@ -191,7 +198,7 @@ class PlatformAuth extends Component
                     $data->headimgurl = $res->headimgurl;
                     $data->privilege = $res->privilege;
                     $data->unionid = isset($res->unionid) ? $res->unionid : '';
-                    $this->cache->set("niancode/wechat/auth/getSnsApiUserinfo/{$this->appid}", $data, 7000);
+                    $this->cache->set("niancode/wechat/auth/getSnsApiUserinfo/{$this->appid}/{$access_token->openid}", $data, 7000);
                     return $data;
                 }
             }
